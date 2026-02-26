@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlazeForm - Live Submission</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body { background:#121212; color:#fff; scrollbar-width: thin; scrollbar-color: #FF3B3B #1f1f1f; }
+::-webkit-scrollbar { width:8px; }
+::-webkit-scrollbar-thumb { background-color:#FF3B3B; border-radius:4px; }
+
+.drag-handle { cursor: grab; margin-right:8px; }
+.time-grid { display:grid; grid-template-columns: repeat(8, 1fr); gap:4px; margin-top:4px; }
+.time-slot { border:1px solid #333; padding:6px; border-radius:4px; text-align:center; cursor:pointer; user-select:none; }
+.time-slot.selected { background: linear-gradient(90deg,#FF3B3B,#8B00FF); color:#fff; }
+.gradient-btn { background: linear-gradient(90deg,#FF3B3B,#8B00FF); }
+</style>
+</head>
+<body class="min-h-screen p-6">
+
+<div class="max-w-5xl mx-auto">
+
+<h1 class="text-3xl font-bold mb-6 text-center">BlazeForm - Live Submission</h1>
+
+<!-- Builder -->
+<div class="mb-6 p-6 bg-gray-900 rounded-lg shadow-md">
+  <div class="flex items-center mb-3">
+    <span class="drag-handle">≡</span>
+    <input type="text" id="questionText" placeholder="Enter your question" class="w-full p-3 rounded-md bg-gray-800 focus:outline-none">
+  </div>
+
+  <select id="questionType" class="w-full p-3 rounded-md bg-gray-800 mb-3 focus:outline-none">
+    <option value="text">Short Answer</option>
+    <option value="textarea">Paragraph</option>
+    <option value="radio">Multiple Choice</option>
+    <option value="checkbox">Checkboxes</option>
+    <option value="dropdown">Dropdown</option>
+    <option value="timegrid">Availability Grid</option>
+  </select>
+
+  <div id="optionsContainer" class="mb-3 hidden">
+    <input type="text" placeholder="Option 1" class="w-full p-2 rounded-md bg-gray-700 mb-2">
+    <input type="text" placeholder="Option 2" class="w-full p-2 rounded-md bg-gray-700 mb-2">
+    <button onclick="addOptionField()" type="button" class="gradient-btn px-4 py-2 rounded-md text-white font-semibold">Add Option</button>
+  </div>
+
+  <div class="flex items-center mb-3">
+    <input type="checkbox" id="requiredToggle" class="mr-2">
+    <label for="requiredToggle">Required Question</label>
+  </div>
+
+  <button onclick="addQuestion()" class="gradient-btn w-full px-4 py-3 rounded-md font-semibold">Add Question</button>
+</div>
+
+<!-- Form Preview -->
+<div class="p-6 bg-gray-900 rounded-lg shadow-md mb-6">
+  <h2 class="text-2xl font-bold mb-4">Form Preview</h2>
+  <form id="formPreview" class="space-y-4"></form>
+  <button type="button" onclick="submitForm()" class="gradient-btn w-full mt-4 px-4 py-3 rounded-md font-semibold">Submit Form</button>
+</div>
+
+<!-- Response Preview -->
+<div class="p-6 bg-gray-900 rounded-lg shadow-md mb-6">
+  <h2 class="text-2xl font-bold mb-4">Form Responses</h2>
+  <div id="formResponses" class="space-y-2"></div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+let formQuestions=[];
+const questionText=document.getElementById("questionText");
+const questionType=document.getElementById("questionType");
+const optionsContainer=document.getElementById("optionsContainer");
+const requiredToggle=document.getElementById("requiredToggle");
+const formPreview=document.getElementById("formPreview");
+const formResponses=document.getElementById("formResponses");
+
+questionType.addEventListener("change",()=>{
+  const val=questionType.value;
+  if(["radio","checkbox","dropdown"].includes(val)) optionsContainer.classList.remove("hidden");
+  else optionsContainer.classList.add("hidden");
+});
+
+function addOptionField(){
+  const input=document.createElement("input");
+  input.type="text";
+  input.placeholder="New Option";
+  input.className="w-full p-2 rounded-md bg-gray-700 mb-2";
+  optionsContainer.appendChild(input);
+}
+
+function addQuestion(){
+  const text=questionText.value.trim();
+  const type=questionType.value;
+  const required=requiredToggle.checked;
+  if(!text) return alert("Enter a question!");
+  const question={ text,type,required,options:[] };
+
+  if(type==="radio"||type==="checkbox"||type==="dropdown"){
+    const optionInputs=optionsContainer.querySelectorAll("input");
+    question.options=Array.from(optionInputs).map(i=>i.value).filter(v=>v);
+    if(question.options.length<2) return alert("Add at least 2 options!");
+  }
+
+  formQuestions.push(question);
+  renderFormPreview();
+
+  questionText.value="";
+  requiredToggle.checked=false;
+  if(optionsContainer) optionsContainer.querySelectorAll("input").forEach((i,index)=>{if(index>1)i.remove();i.value="";});
+}
+
+function renderFormPreview(){
+  formPreview.innerHTML="";
+  formQuestions.forEach((q,index)=>{
+    const wrapper=document.createElement("div");
+    wrapper.className="p-3 bg-gray-800 rounded-md flex flex-col";
+    wrapper.dataset.index=index;
+
+    const label=document.createElement("label");
+    label.textContent=q.text+(q.required?" *":"");
+    label.className="block mb-2 font-semibold";
+    wrapper.appendChild(label);
+
+    if(q.type==="text"){
+      const input=document.createElement("input");
+      input.type="text";
+      input.required=q.required;
+      input.className="w-full p-2 rounded-md bg-gray-700";
+      wrapper.appendChild(input);
+    }
+    if(q.type==="textarea"){
+      const textarea=document.createElement("textarea");
+      textarea.required=q.required;
+      textarea.className="w-full p-2 rounded-md bg-gray-700";
+      wrapper.appendChild(textarea);
+    }
+    if(q.type==="radio"||q.type==="checkbox"){
+      q.options.forEach(opt=>{
+        const div=document.createElement("div");
+        div.className="flex items-center mb-1";
+        const input=document.createElement("input");
+        input.type=q.type;
+        input.name="q"+index;
+        input.required=q.required;
+        input.className="mr-2";
+        div.appendChild(input);
+        const span=document.createElement("span");
+        span.textContent=opt;
+        div.appendChild(span);
+        wrapper.appendChild(div);
+      });
+    }
+    if(q.type==="dropdown"){
+      const select=document.createElement("select");
+      select.required=q.required;
+      select.className="w-full p-2 rounded-md bg-gray-700";
+      q.options.forEach(opt=>{
+        const option=document.createElement("option");
+        option.value=opt;
+        option.textContent=opt;
+        select.appendChild(option);
+      });
+      wrapper.appendChild(select);
+    }
+    if(q.type==="timegrid"){
+      const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      const wrapperGrid=document.createElement("div");
+      wrapperGrid.className="time-grid";
+      q.selectedSlots=[];
+      for(let d=0; d<days.length; d++){
+        for(let h=8; h<=20; h+=2){
+          const slot=document.createElement("div");
+          slot.className="time-slot";
+          slot.dataset.day=days[d];
+          slot.dataset.hour=h;
+          slot.textContent=days[d]+" "+h+":00";
+          slot.addEventListener("click",()=>{
+            slot.classList.toggle("selected");
+            q.selectedSlots=[];
+            wrapperGrid.querySelectorAll(".selected").forEach(s=>{
+              q.selectedSlots.push({day:s.dataset.day,hour:s.dataset.hour});
+            });
+          });
+          wrapperGrid.appendChild(slot);
+        }
+      }
+      wrapper.appendChild(wrapperGrid);
+    }
+    formPreview.appendChild(wrapper);
+  });
+
+  new Sortable(formPreview,{ animation:150, handle:".drag-handle", onEnd:(e)=>{
+    const moved=formQuestions.splice(e.oldIndex,1)[0];
+    formQuestions.splice(e.newIndex,0,moved);
+    renderFormPreview();
+  }});
+}
+
+function submitForm(){
+  formResponses.innerHTML="";
+  formQuestions.forEach((q,index)=>{
+    let value="";
+    if(q.type==="text") value=formPreview.querySelectorAll("input")[index].value;
+    else if(q.type==="textarea") value=formPreview.querySelectorAll("textarea")[index].value;
+    else if(q.type==="radio") {
+      const checked=formPreview.querySelectorAll(`input[name=q${index}]`);
+      checked.forEach(c=>{if(c.checked) value=c.nextSibling.textContent;});
+    }
+    else if(q.type==="checkbox") {
+      const checked=formPreview.querySelectorAll(`input[name=q${index}]`);
+      value=Array.from(checked).filter(c=>c.checked).map(c=>c.nextSibling.textContent).join(", ");
+    }
+    else if(q.type==="dropdown") value=formPreview.querySelectorAll("select")[index].value;
+    else if(q.type==="timegrid") value=JSON.stringify(q.selectedSlots);
+
+    const div=document.createElement("div");
+    div.textContent=q.text+": "+value;
+    formResponses.appendChild(div);
+  });
+}
+
+</script>
+</body>
+</html>
